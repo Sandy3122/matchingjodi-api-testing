@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from 'react-query';
 import { endpoints, endpointGroups } from './data/endpoints';
 import { Environment, ApiEndpoint, ApiResponse, ApiRequestHistory } from './types/api';
-import { environments } from './data/environments';
 import EndpointGroup from './components/EndpointGroup';
 import Header from './components/Header';
 import RequestHistory from './components/RequestHistory';
+import { useEnvironment } from './hooks/useEnvironment';
+import LoadingButton from './components/LoadingButton';
+
+const queryClient = new QueryClient();
 
 function App() {
-  const [environment, setEnvironment] = useState<Environment>(environments[0]);
+  const { selectedEnvironment, changeEnvironment } = useEnvironment();
   const [requestHistory, setRequestHistory] = useState<ApiRequestHistory[]>(() => {
     const savedHistory = localStorage.getItem('requestHistory');
     return savedHistory ? JSON.parse(savedHistory) : [];
@@ -16,6 +20,7 @@ function App() {
     const savedReport = localStorage.getItem('healthReport');
     return savedReport ? JSON.parse(savedReport) : null;
   });
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('requestHistory', JSON.stringify(requestHistory));
@@ -27,14 +32,10 @@ function App() {
     }
   }, [report]);
 
-  const handleEnvironmentChange = (env: Environment) => {
-    setEnvironment(env);
-  };
-
   const handleResponseReceived = (endpoint: ApiEndpoint, response: ApiResponse) => {
     const historyItem: ApiRequestHistory = {
       endpoint,
-      environment,
+      environment: selectedEnvironment,
       response,
       timestamp: new Date(),
     };
@@ -48,6 +49,7 @@ function App() {
   };
 
   const generateReport = async () => {
+    setGeneratingReport(true);
     const reportData: any[] = [];
     let cacheStatus = null;
     let redisKeys = null;
@@ -55,14 +57,14 @@ function App() {
     for (const endpoint of endpoints) {
       if (endpoint.path.includes('/health')) {
         try {
-          const response = await fetch(`${environment.baseUrl}${endpoint.path}`);
+          const response = await fetch(`${selectedEnvironment.baseUrl}${endpoint.path}`);
           const data = await response.json();
           reportData.push({
             endpoint: endpoint.path,
             status: response.status,
             data,
           });
-        } catch (error) {
+        } catch (error: any) {
           reportData.push({
             endpoint: endpoint.path,
             status: 'Error',
@@ -74,7 +76,7 @@ function App() {
 
     // Fetch Cache Status
     try {
-      const cacheStatusResponse = await fetch(`${environment.baseUrl}/api/cache/status`);
+      const cacheStatusResponse = await fetch(`${selectedEnvironment.baseUrl}/api/cache/status`);
       const cacheStatusData = await cacheStatusResponse.json();
 
       cacheStatus = {
@@ -89,30 +91,31 @@ function App() {
         logs: cacheStatusData.logs,
         errors: cacheStatusData.errors,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching cache status:', error.message);
       cacheStatus = { cache: 'Error fetching cache status', scheduler: null };
     }
 
     // Fetch Redis Keys
     try {
-      const redisKeysResponse = await fetch(`${environment.baseUrl}/api/cache/redis/keys`);
+      const redisKeysResponse = await fetch(`${selectedEnvironment.baseUrl}/api/cache/redis/keys`);
       const redisKeysData = await redisKeysResponse.json();
       redisKeys = redisKeysData.keys || [];
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching Redis keys:', error.message);
       redisKeys = ['Error fetching Redis keys'];
     }
 
     const finalReport = {
       timestamp: new Date(),
-      environment: environment.name,
+      environment: selectedEnvironment.name,
       healthApis: reportData,
       cacheStatus,
       redisKeys,
     };
 
     setReport(finalReport);
+    setGeneratingReport(false);
   };
 
   const clearReport = () => {
@@ -121,56 +124,67 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <Header currentEnvironment={environment} onEnvironmentChange={handleEnvironmentChange} />
+    <QueryClientProvider client={queryClient}>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <Header
+          currentEnvironment={selectedEnvironment}
+          onEnvironmentChange={changeEnvironment}
+        />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 gap-y-8">
-          {endpointGroups.map((group) => (
-            <EndpointGroup
-              key={group}
-              groupName={group}
-              endpoints={endpoints.filter((endpoint) => endpoint.group === group)}
-              environment={environment}
-              onResponseReceived={handleResponseReceived}
-            />
-          ))}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8">
+          <div className="grid grid-cols-1 gap-y-8">
+            {endpointGroups.map((group) => (
+              <EndpointGroup
+                key={group}
+                groupName={group}
+                endpoints={endpoints.filter((endpoint) => endpoint.group === group)}
+                environment={selectedEnvironment}
+                onResponseReceived={handleResponseReceived}
+              />
+            ))}
 
-          <RequestHistory history={requestHistory} onClearHistory={clearHistory} />
+            <RequestHistory history={requestHistory} onClearHistory={clearHistory} />
 
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Health Report</h2>
-            <button
-              onClick={generateReport}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Generate Report
-            </button>
-            <button
-              onClick={clearReport}
-              className="mt-2 ml-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Clear Report
-            </button>
-            {report && (
-              <div className="mt-4">
-                <pre className="bg-gray-100 dark:bg-gray-700 p-4 rounded text-sm text-gray-800 dark:text-gray-200">
-                  {JSON.stringify(report, null, 2)}
-                </pre>
+            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Health Report</h2>
+              <div className="flex mt-2 gap-4">
+                <LoadingButton
+                  onClick={generateReport}
+                  isLoading={generatingReport}
+                  loadingText="Generating Report..."
+                  className="px-2 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Generate Report
+                </LoadingButton>
+                <LoadingButton
+                  onClick={clearReport}
+                  isLoading={false}
+                  showIcon={false}
+                  className="px-2 py-1.5 bg-red-600 text-white rounded hover:bg-red-700"
+                >
+                  Clear Report
+                </LoadingButton>
               </div>
-            )}
+              {report && (
+                <div className="mt-4">
+                  <pre className="bg-gray-100 dark:bg-gray-700 p-4 rounded text-sm text-gray-800 dark:text-gray-200">
+                    {JSON.stringify(report, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
 
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            MatchingJodi API Tester &copy; {new Date().getFullYear()}
-          </p>
-        </div>
-      </footer>
-    </div>
+        <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              MatchingJodi API Tester
+            </p>
+          </div>
+        </footer>
+      </div>
+    </QueryClientProvider>
   );
 }
 

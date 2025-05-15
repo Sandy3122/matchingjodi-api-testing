@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Play, AlertCircle, Info, ChevronDown, ChevronUp } from 'lucide-react';
-import { ApiEndpoint, ApiResponse, Environment } from '../types/api';
+import { Endpoint, ApiResponse, Environment } from '../types/api';
 import { useApiRequest } from '../hooks/useApiRequest';
 import ResponseDisplay from './ResponseDisplay';
 
 interface EndpointCardProps {
-  endpoint: ApiEndpoint;
+  endpoint: Endpoint;
   environment: Environment;
-  onResponseReceived?: (endpoint: ApiEndpoint, response: ApiResponse) => void;
+  onResponseReceived?: (endpoint: Endpoint, response: ApiResponse) => void;
 }
 
 const EndpointCard: React.FC<EndpointCardProps> = ({ 

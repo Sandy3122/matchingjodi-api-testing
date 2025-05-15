@@ -1,6 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Add this at the top of the file */
+@viewport {
+  width: device-width;
+  zoom: 1.0;
+}
+
+/* ... rest of your existing styles */
 
 :root {
   --primary: #7E57C2;
@@ -75,4 +83,19 @@ body {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #777;
+}
+
+/* Add these responsive utility classes */
+@layer utilities {
+  .text-responsive {
+    @apply text-sm sm:text-base md:text-lg;
+  }
+  
+  .padding-responsive {
+    @apply p-2 sm:p-4 md:p-6;
+  }
+  
+  .margin-responsive {
+    @apply m-2 sm:m-4 md:m-6;
+  }
 }

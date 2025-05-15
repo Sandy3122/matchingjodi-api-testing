@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { Environment } from '../types/api';
 
 const environments: Environment[] = [
-  { name: 'Production', baseUrl: 'https://www.matchingjodi.com' },
   { name: 'Stage', baseUrl: 'https://matchingjodi-backup.web.app' },
+  { name: 'Production', baseUrl: 'https://www.matchingjodi.com' },
 ];
 
 export const useEnvironment = () => {
-  // Ensure the default environment is set to "Production"
+  // Ensure the default environment is set to "Stage"
   const [selectedEnvironment, setSelectedEnvironment] = useState<Environment>(environments[0]);
   
   // Load saved environment from localStorage if available
